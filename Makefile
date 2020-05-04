@@ -3,21 +3,17 @@
 
 include $(ROOT)/usr/include/make/PRdefs
 
-N64KITDIR    = c:\nintendo\n64kit
-NUSYSINCDIR  = $(N64KITDIR)/nusys/include
-NUSYSLIBDIR  = $(N64KITDIR)/nusys/lib
+NUSYSINCDIR  = /usr/include/n64/nusys
+NUSYSLIBDIR  = /usr/lib/n64/nusys
 
-LIB = $(ROOT)/usr/lib
+LIB = /usr/lib/n64
 LPR = $(LIB)/PR
-INC = $(ROOT)/usr/include
-CC  = gcc
-LD  = ld
-MAKEROM = mild
+INC = /usr/include/n64
 
 LCDEFS =	-DNU_DEBUG -DF3DEX_GBI_2
-LCINCS =	-I. -I$(NUSYSINCDIR) -I$(ROOT)/usr/include/PR
+LCINCS =	-I. -I$(NUSYSINCDIR) -I$(ROOT)/usr/include/PR 
 LCOPTS =	-G 0
-LDFLAGS = $(MKDEPOPT) -L$(LIB) -L$(NUSYSLIBDIR) -lnusys_d -lgultra_d -L$(GCCDIR)/mipse/lib -lkmc
+LDFLAGS = $(MKDEPOPT) -L$(LIB) -L$(NUSYSLIBDIR) -lnusys_d -lultra_d -lkmc
 
 OPTIMIZER =	-g
 
@@ -48,8 +44,7 @@ $(CODESEGMENT):	$(CODEOBJECTS) Makefile
 		$(LD) -o $(CODESEGMENT) -r $(CODEOBJECTS) $(LDFLAGS)
 
 $(TARGETS):	$(OBJECTS)
-		$(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -e $(APP)
-ifdef MAKEMASK
+		$(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -s 9 -e $(APP)
 		makemask $(TARGETS)
-endif
-		
+
+
