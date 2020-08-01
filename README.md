@@ -1,4 +1,4 @@
-# Nintendo 64 homebrew demo & tutorial
+# Nintendo 64 homebrew demo & tutorial (modern GCC & N64 SDK 2.0L)
 
 This is a demo app with heavily-commented source showing basic usage of the N64 SDK and the NuSystem framework. The game-specific code is in [stage00.c](https://github.com/jsdf/n64-sdk-demo/blob/master/stage00.c).
 
@@ -8,11 +8,56 @@ The compiled rom file can be found [here](https://github.com/jsdf/n64-sdk-demo/r
 
 ## How to build (macOS or linux):
 
-- Install [wine](https://www.winehq.org/)
-- Install the n64 sdk. this repo assumes it's in the default location of `C:\ultra` (in the wine filesystem). If you've installed it somewhere else, you'll need to update this path in `compile.bat`
-- Edit `./build.sh` so that WINE_PATH points to your wine binary
-- Run `./build.sh`. This should build squaresdemo.n64
-- Run squaresdemo.n64 with an emulator or an N64 flashcart
+### Compile the GCC toolchain
+
+Clone the n64chain repo found here: https://github.com/tj90241/n64chain
+
+Install GNU sed: `brew install gnu-sed`. Temporarily adjust your path like
+```bash
+PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"
+```
+so it will be used instead of macOS's version (BSD sed)
+
+
+Run the `build-linux64-toolchain.sh` script for linux/macOS or
+`build-windows64-toolchain.sh` for Windows. This will build GCC, which takes a while.
+If you're missing any of the [prerequistes for GCC](https://gcc.gnu.org/install/prerequisites.html) it will fail, but you can just wait until it fails, see what you need to install (eg. gmp, libmpc, etc), install it and re-run the script, which will restart from the step that failed.
+
+make libgcc:
+```bash
+echo "" >> ./gcc-source/libgcc/config/mips/t-mips64 # clear this file
+cd gcc-build
+# to clean, in case you change something: 
+# make clean-target-libgcc
+make all-target-libgcc CC_FOR_TARGET=$N64_TOOLCHAIN/mips64-elf-gcc CFLAGS_FOR_TARGET="-D_MIPS_SZLONG=32 -D_MIPS_SZINT=32 -mabi=32  -march=vr4300  -mtune=vr4300 -mfix4300"
+make install-target-libgcc
+```
+
+After running this command, add `N64CHAIN` to your path (or create a script to be sourced whenever you want to run the tools):
+
+```bash
+N64CHAIN=/path/to/n64chain # adjust this to point to your clone of n64chain
+export PATH="$N64CHAIN/tools/bin:$PATH"
+```
+
+
+### building the code in this repo
+
+This demo codebase is a typical NuSystem app.  
+ 
+
+Edit `./build.sh` so that the ROOT variable points to your copy of the N64 SDK
+
+The compiled ROM file is squaresdemo.n64. It can be run with an emulator or an N64 flashcart.
+
+`./disassemble.sh` invokes the objdump utility from the modern GCC toolchain to disassemble the final binary. This means it can take advantage of the debugging symbols from the modern GCC compiler, for example to get C source interspersed into the disassembly.
+
+The disassembly is output into disassembly.txt. For example to see the disassembly of the Game_update() function: 
+
+```bash
+cat disassembly.txt | grep  'Game_update()' --after=30 --color=always
+```
+ 
 
 ## Understanding the code (or, an N64 homebrew tutorial)
 
@@ -20,7 +65,7 @@ There are basically two options for making an N64 game these days:
 - the official Nintendo SDK from the 90s, which comes in Windows 95 and SGI IRIX flavours.
 - the modern open source toolchain, which centers on the [libdragon](https://github.com/DragonMinded/libdragon) library and tools.
 
-This tutorial uses the SDK. RetroReversing has a [pretty good tutorial for installing and using the SDK](https://www.retroreversing.com/n64-sdk-setup) under Wine, which will allow you to compile the code in this repo.
+This tutorial uses the SDK with a modern GCC toolchain installed using the instructions above.
 
 The N64 SDK comes with a small framework for quickly starting a new game, called NuSystem. The N64 comes with an OS (really, a library that you link into your game binary and boot on the bare metal), which provides features like threads and I/O, but still requires a fair bit of boilerplate to get a game engine set up. NuSystem removes the need to think about threads and initializing the hardware, and just lets you provide the typical `setup()`, `update()`, and `draw()` callbacks that form the core of many simple game engines. In NuSystem these functions are typically called [`initStage00()`](https://github.com/jsdf/n64-sdk-demo/blob/master/stage00.c#L41), [`updateGame00()`](https://github.com/jsdf/n64-sdk-demo/blob/master/stage00.c#L60), and [`makeDL00()`](https://github.com/jsdf/n64-sdk-demo/blob/master/stage00.c#L91) respectively, where `00` is the stage/level number of the game.
 

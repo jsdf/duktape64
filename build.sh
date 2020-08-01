@@ -1,8 +1,13 @@
 #!/bin/bash
 set -eu
 
-WINE_PATH="/Applications/Wine Stable.app/Contents/Resources/wine/bin/wine"
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 rm -f *.o
-"$WINE_PATH" cmd /c $DIR/compile.bat
+
+export ROOT="$HOME/code/n64sdk20l/n64sdk"
+
+source "$HOME/code/n64cc/env.sh"
+
+
+make $@

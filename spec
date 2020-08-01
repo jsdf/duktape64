@@ -30,7 +30,44 @@ beginseg
 	include "$(ROOT)/usr/lib/PR/gspS2DEX2.fifo.o"
 endseg
 
+beginseg
+  name  "duktape"
+  flags OBJECT
+  after "code"
+  include "duktape.o"
+  include "duk_console.o"
+endseg
+
+beginseg
+  name  "memheap"
+  flags OBJECT
+  address 0x80400000
+  include "mem_heap.o"
+endseg
+
+/*
+beginseg
+  name  "nextmb"
+  flags OBJECT
+  size 0x100000
+  address 0x80400000
+  include "mem_heap.o"
+endseg
+*/
+
 beginwave
-	name	"squaresdemo"
-	include	"code"
+  name  "squaresdemo"
+  include "code" 
+  include "duktape"
+  // include  "nextmb"
+  include  "memheap"
 endwave
+
+/*
+beginwave
+  name  "squaresdemoduktape"
+  include "code" 
+  include "duktape"
+  include  "memheap"
+endwave
+*/

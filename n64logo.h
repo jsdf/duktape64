@@ -1,4 +1,4 @@
-Vtx N64Yellow_VertList[] = {
+Vtx N64Yellow_VertList[] __attribute__((aligned (16))) = {
    { -44, -22, -42, 0, 0, 0, 245, 168, 5, 255},
    { -24, -43, -42, 0, 0, 0, 245, 168, 5, 255},
    { -44, -43, -42, 0, 0, 0, 245, 168, 5, 255},
@@ -49,7 +49,7 @@ Vtx N64Yellow_VertList[] = {
    { 48, 24, 42, 0, 0, 0, 245, 168, 5, 255},
 };
 
-Gfx N64Yellow_PolyList[] = {
+Gfx N64Yellow_PolyList[] __attribute__((aligned (16))) = {
    gsSPVertex(N64Yellow_VertList+0,30,0),
    gsSP1Triangle(0, 1, 2, 0),
    gsSP1Triangle(3, 4, 5, 0),
@@ -71,7 +71,7 @@ Gfx N64Yellow_PolyList[] = {
    gsSPEndDisplayList(),
 };
 
-Vtx N64Red_VertList[] = {
+Vtx N64Red_VertList[] __attribute__((aligned (16))) = {
    { 23, -43, -12, 0, 0, 0, 224, 55, 58, 255},
    { -24, -24, 42, 0, 0, 0, 222, 10, 20, 255},
    { -24, -43, 42, 0, 0, 0, 222, 10, 20, 255},
@@ -98,7 +98,7 @@ Vtx N64Red_VertList[] = {
    { 48, 24, -42, 0, 0, 0, 222, 10, 20, 255},
 };
 
-Gfx N64Red_PolyList[] = {
+Gfx N64Red_PolyList[] __attribute__((aligned (16))) = {
    gsSPVertex(N64Red_VertList+0,30,0),
    gsSP1Triangle(0, 1, 2, 0),
    gsSP1Triangle(3, 4, 5, 0),
@@ -111,7 +111,7 @@ Gfx N64Red_PolyList[] = {
    gsSPEndDisplayList(),
 };
 
-Vtx N64Green_VertList[] = {
+Vtx N64Green_VertList[] __attribute__((aligned (16))) = {
    { -24, -43, 13, 0, 0, 0, 46, 143, 3, 255},
    { 23, -24, -42, 0, 0, 0, 46, 143, 3, 255},
    { 23, -43, -42, 0, 0, 0, 46, 143, 3, 255},
@@ -234,7 +234,7 @@ Vtx N64Green_VertList[] = {
    { 48, -24, 42, 0, 0, 0, 46, 143, 3, 255},
 };
 
-Gfx N64Green_PolyList[] = {
+Gfx N64Green_PolyList[] __attribute__((aligned (16))) = {
    gsSPVertex(N64Green_VertList+0,30,0),
    gsSP1Triangle(0, 1, 2, 0),
    gsSP1Triangle(3, 4, 5, 0),
@@ -282,7 +282,7 @@ Gfx N64Green_PolyList[] = {
    gsSPEndDisplayList(),
 };
 
-Vtx N64Blue_VertList[] = {
+Vtx N64Blue_VertList[] __attribute__((aligned (16))) = {
    { -24, -43, 13, 0, 0, 0, 0, 5, 143, 255},
    { -24, -24, -14, 0, 0, 0, 0, 5, 143, 255},
    { -24, -24, 13, 0, 0, 0, 0, 5, 143, 255},
@@ -381,7 +381,7 @@ Vtx N64Blue_VertList[] = {
    { 48, -43, -42, 0, 0, 0, 0, 5, 143, 255},
 };
 
-Gfx N64Blue_PolyList[] = {
+Gfx N64Blue_PolyList[] __attribute__((aligned (16))) = {
    gsSPVertex(N64Blue_VertList+0,30,0),
    gsSP1Triangle(0, 1, 2, 0),
    gsSP1Triangle(3, 4, 5, 0),

@@ -3,7 +3,6 @@ set -eu
 
 # this script will build and deploy the rom to an Everdrive64 flashcart
 
-MAKEMASK=1 ./build.sh
 
 for f in *.n64; do
   romfile="$f"
@@ -41,3 +40,6 @@ retry loader64 -v --write --file "$romfile"
 sleep 1;
 # boot rom that was uploaded
 retry loader64 -v --pifboot
+
+# tail the logger 
+ed64logjs

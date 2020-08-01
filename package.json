@@ -1,0 +1,22 @@
+{
+  "name": "n64-duktape",
+  "version": "1.0.0",
+  "description": "This is a demo app with heavily-commented source showing basic usage of the N64 SDK and the NuSystem framework. The game-specific code is in [stage00.c](https://github.com/jsdf/n64-sdk-demo/blob/master/stage00.c).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CrashOveride95/n64-sdk-demo.git"
+  },
+  "author": "James Friend <james@jsdf.co> (http://jsdf.co/)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/CrashOveride95/n64-sdk-demo/issues"
+  },
+  "homepage": "https://github.com/CrashOveride95/n64-sdk-demo#readme",
+  "dependencies": {
+    "ed64logjs": "^1.0.1"
+  }
+}
