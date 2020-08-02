@@ -1,3 +1,4 @@
+// clang-format off
 /*
  *  Duktape public API for Duktape 2.5.0.
  *

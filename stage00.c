@@ -7,8 +7,19 @@
 #include "n64logo.h"
 #include "stage00.h"
 
-#include "duktape.h"
 #include "ed64io.h"
+
+#include "duktape.h"
+
+#include "duk_console.h"
+
+#define PRINTF ed64PrintfSync2
+#define DEBUGPRINT 0
+#if DEBUGPRINT
+#define DBGPRINT ed64PrintfSync2
+#else
+#define DBGPRINT(args...)
+#endif
 
 Vec3d cameraPos = {-200.0f, -200.0f, -200.0f};
 Vec3d cameraTarget = {0.0f, 0.0f, 0.0f};
@@ -32,6 +43,16 @@ int squaresRotationDirection;
 
 int showN64Logo;
 
+duk_context* ctx;
+
+static void my_fatal(void* udata, const char* msg) {
+  DUK_USE_FATAL_HANDLER(udata, msg);
+}
+
+static void n64log(const char* msg) {
+  nuDebConPrintf(0, "%s", msg);
+}
+
 // the 'setup' function
 void initStage00() {
   // the advantage of initializing these values here, rather than statically, is
@@ -50,25 +71,23 @@ void initStage00() {
       squaresRotations[i] = initSquaresRotations[i];
     }
   }
+
+  ctx = duk_create_heap(NULL, NULL, NULL, NULL, my_fatal);
+  ed64PrintfSync2("created JS heap at %x\n", ctx);
+  duk_console_init(ctx, 0);
+
+  nuDebConClear(0);
+  nuDebConWindowPos(0, 4, 4);
 }
-
-
-#define PRINTF ed64PrintfSync2
-#define DEBUGPRINT 0
-#if DEBUGPRINT
-#define DBGPRINT ed64PrintfSync2
-#else
-#define DBGPRINT(args...)
-#endif
 
 #define USB_BUFFER_SIZE 128
 
-int evalBufferLength = 0;
-char * evalBuffer = NULL;
+int evalBufferSize = 0;  // in bytes
+char* evalBuffer = NULL;
 
 #define EVAL_BODY_MAX 506
 
-int ed64UsbCmdListener( ) {
+int ed64UsbCmdListener() {
   char cmd;
   u32 usb_rx_buff32[USB_BUFFER_SIZE];
   char* usb_rx_buff8 = (char*)usb_rx_buff32;
@@ -98,24 +117,77 @@ int ed64UsbCmdListener( ) {
   DBGPRINT("got command: '%c'\n", cmd);
 
   switch (cmd) {
-    case 'e': {
-      char * evalBufferNext;
-      u16 length = *((u16*)(usb_rx_buff8 + 4));  // start + 4 bytes
-      u8* body = *((u16*)(usb_rx_buff8 + 6));  // start + 6 bytes
+    case 'e':
+    case 'x': {
+      char* evalBufferNext;
+      u16 bodySize = *((u16*)(usb_rx_buff8 + 4));  // start + 4 bytes
+      const char* body = usb_rx_buff8 + 6;         // start + 6 bytes
+      int isLastChunk = FALSE;
+      char debugBody[EVAL_BODY_MAX + 1];
 
-      if (length>EVAL_BODY_MAX) {
-        PRINTF("message length field invalid %d",length);
+      if (bodySize > EVAL_BODY_MAX || bodySize < 1) {
+        PRINTF("message bodySize field invalid %d\n", bodySize);
         return TRUE;
       }
-      length = MIN(length, EVAL_BODY_MAX);
-      evalBufferNext = (char * )malloc(evalBufferLength+length);
+      bodySize = MIN(bodySize, EVAL_BODY_MAX);
+
+      // print out the body for debugging
+      memcpy(debugBody, body, bodySize);
+      debugBody[bodySize] = '\0';
+      DBGPRINT("got body: %s\n", debugBody);
+
+      DBGPRINT("will alloc: %d\n", evalBufferSize + bodySize);
+      // buffer for next js string (appended to current)
+      evalBufferNext = (char*)malloc(evalBufferSize + bodySize);
       if (!evalBufferNext) {
-        PRINTF("failed to alloc memory");
+        PRINTF("failed to alloc memory\n");
         return TRUE;
       }
-      memcpy(evalBufferNext, evalBuffer, evalBufferLength);
-      memcpy(evalBufferNext+evalBufferLength, usb_rx_buff8, length);
 
+      // the presence of a '\0' indicates we're done receiving chunks and can
+      // proceed with evaluation
+      {
+        int i;
+        for (i = 0; i < bodySize; ++i) {
+          if (body[i] == '\0') {
+            isLastChunk = TRUE;
+            break;
+          }
+        }
+      }
+      if (evalBuffer) {
+        // copy any existing stuff into the new buffer
+        memcpy(evalBufferNext, evalBuffer, evalBufferSize);
+      }
+      memcpy(evalBufferNext + evalBufferSize, body, bodySize);
+      free(evalBuffer);
+      evalBuffer = evalBufferNext;
+
+      // we're ready to eval the text
+      // and it definitely has a null-terminator
+      if (isLastChunk) {
+        DBGPRINT("evaling: %s\n", evalBuffer);
+        // duk_eval_string(ctx, evalBuffer);
+        duk_push_string(ctx, evalBuffer);
+        if (duk_peval(ctx) != 0) {
+          printf("%s\n", duk_safe_to_string(ctx, -1));
+        } else {
+          // in eval case we return output, in exec case we don't
+          if (cmd == 'e') {
+            ed64Printf("=> ");
+            duk__fmt(ctx);
+          }
+        }
+        duk_pop(ctx);
+        free(evalBuffer);
+        evalBuffer = NULL;
+      } else {
+        // multi-part message, wait for more chunks
+        DBGPRINT("multi-part message\n");
+        while (!ed64UsbCmdListener()) {
+          evd_sleep(100);
+        }
+      }
 
       return TRUE;
     }
@@ -126,58 +198,18 @@ int ed64UsbCmdListener( ) {
   return FALSE;
 }
 
-
-
-
-static int ranJSOnce = FALSE;
-
-static void my_fatal(void *udata, const char *msg) {
-  DUK_USE_FATAL_HANDLER(udata,msg);
-}
-
-char jsExpr[] = "JSON.stringify({a:{b: Math.random()}},null,2)";
-char * jsResultStr;
-
-duk_context *ctx;
 // the 'update' function
 int gameTick = 0;
 void updateGame00() {
   gameTick++;
-  if (!ranJSOnce) {
-    ed64PrintfSync2("about to run JS\n");
-    // duk_context* ctx = duk_create_heap_default();
-    ctx = duk_create_heap(NULL,
-                                 NULL,
-                                 NULL,
-                                 NULL,
-                                 my_fatal); 
 
-    // duk_eval_string(ctx, "function render() { return JSON.stringify({a: {b: 1}}, null, 2); }");
-    // duk_eval_string(ctx, "function render() { return Math.floor(Math.random()*16777215).toString(16) }");
-    // duk_destroy_heap(ctx);
-    ranJSOnce = TRUE;
-  }
-  if (gameTick % 2 == 0) {
-
-    // duk_eval_string(ctx, "render()");
-    duk_eval_string(ctx, jsExpr);
-
-    jsResultStr = duk_get_string(ctx, -1);
-    // ed64PrintfSync2("%s=%s\n", jsExpr, jsResultStr); 
-  }
-
-  // {                                                                  
-  //     u64 intentionallyCrash;                                          
-  //     intentionallyCrash = *(u64*)4;                                   
-  //   }  
-    
   // read controller input from controller 1 (index 0)
   nuContDataGetEx(contdata, 0);
   // We check if the 'A' Button was pressed using a bitwise AND with
   // contdata[0].trigger and the A_BUTTON constant.
-  // The contdata[0].trigger property is set only for the frame that the button
-  // is initially pressed. The contdata[0].button property is similar, but stays
-  // on for the duration of the button press.
+  // The contdata[0].trigger property is set only for the frame that the
+  // button is initially pressed. The contdata[0].button property is similar,
+  // but stays on for the duration of the button press.
   if (contdata[0].trigger & A_BUTTON) {
     // when A button is pressed, reverse rotation direction
     squaresRotationDirection = !squaresRotationDirection;
@@ -225,13 +257,13 @@ void makeDL00() {
   guPerspective(&gfxTask->projection, &perspNorm, FOVY, ASPECT, NEAR_PLANE,
                 FAR_PLANE, 1.0);
 
-  // Our first actual displaylist command. This writes the command as a value at
-  // the tail of the current display list, and we increment the display list
-  // tail pointer, ready for the next command to be written.
-  // As for what this command does... it's just required when using a
-  // perspective projection. Try pasting 'gSPPerspNormalize' into google if you
-  // want more explanation, as all the SDK documentation has been placed online
-  // by hobbyists and is well indexed.
+  // Our first actual displaylist command. This writes the command as a value
+  // at the tail of the current display list, and we increment the display
+  // list tail pointer, ready for the next command to be written. As for what
+  // this command does... it's just required when using a perspective
+  // projection. Try pasting 'gSPPerspNormalize' into google if you want more
+  // explanation, as all the SDK documentation has been placed online by
+  // hobbyists and is well indexed.
   gSPPerspNormalize(displayListPtr++, perspNorm);
 
   // initialize the modelview matrix, similar to gluLookAt() or glm::lookAt()
@@ -243,17 +275,17 @@ void makeDL00() {
   // given the combination of G_MTX_flags we provide, effectively this means
   // "replace the projection matrix with this new matrix"
   gSPMatrix(displayListPtr++,
-            // we use the OS_K0_TO_PHYSICAL macro to convert the pointer to this
-            // matrix into a 'physical' address as required by the RCP
+            // we use the OS_K0_TO_PHYSICAL macro to convert the pointer to
+            // this matrix into a 'physical' address as required by the RCP
             OS_K0_TO_PHYSICAL(&(gfxTask->projection)),
             // these flags tell the graphics microcode what to do with this
             // matrix documented here:
             // http://n64devkit.square7.ch/tutorial/graphics/1/1_3.htm
             G_MTX_PROJECTION |  // using the projection matrix stack...
-                G_MTX_LOAD |  // don't multiply matrix by previously-top matrix
-                              // in stack
-                G_MTX_NOPUSH  // don't push another matrix onto the stack before
-                              // operation
+                G_MTX_LOAD |    // don't multiply matrix by previously-top
+                                // matrix in stack
+                G_MTX_NOPUSH    // don't push another matrix onto the stack
+                                // before operation
   );
 
   gSPMatrix(displayListPtr++, OS_K0_TO_PHYSICAL(&(gfxTask->modelview)),
@@ -266,7 +298,8 @@ void makeDL00() {
     Vec3d* square;
     for (i = 0; i < NUM_SQUARES; ++i) {
       square = &squares[i];
-      // create a transformation matrix representing the position of the square
+      // create a transformation matrix representing the position of the
+      // square
       guPosition(&gfxTask->objectTransforms[i],
                  // rotation
                  squaresRotations[i],  // roll
@@ -301,42 +334,34 @@ void makeDL00() {
   gDPFullSync(displayListPtr++);
   gSPEndDisplayList(displayListPtr++);
 
-  // assert that the display list isn't longer than the memory allocated for it,
-  // otherwise we would have corrupted memory when writing it.
-  // isn't unsafe memory access fun?
-  // this could be made safer by instead asserting on the displaylist length
-  // every time the pointer is advanced, but that would add some overhead.
-  // assert(displayListPtr - gfxTask->displayList < MAX_DISPLAY_LIST_COMMANDS);
+  // assert that the display list isn't longer than the memory allocated for
+  // it, otherwise we would have corrupted memory when writing it. isn't
+  // unsafe memory access fun? this could be made safer by instead asserting
+  // on the displaylist length every time the pointer is advanced, but that
+  // would add some overhead. assert(displayListPtr - gfxTask->displayList <
+  // MAX_DISPLAY_LIST_COMMANDS);
 
   // create a graphics task to render this displaylist and send it to the RCP
   nuGfxTaskStart(
       gfxTask->displayList,
       (int)(displayListPtr - gfxTask->displayList) * sizeof(Gfx),
-      NU_GFX_UCODE_F3DEX,  // load the 'F3DEX' version graphics microcode, which
-                           // runs on the RCP to process this display list
-     NU_SC_NOSWAPBUFFER
-      // NU_SC_SWAPBUFFER     // tells NuSystem to immediately display the frame on
-                           // screen after the RCP finishes rendering it
+      NU_GFX_UCODE_F3DEX,  // load the 'F3DEX' version graphics microcode,
+                           // which runs on the RCP to process this display
+                           // list
+      NU_SC_NOSWAPBUFFER
+      // NU_SC_SWAPBUFFER     // tells NuSystem to immediately display the
+      // frame on screen after the RCP finishes rendering it
   );
 
-
-  nuDebConClear(0);
-  nuDebConWindowPos(0, 4, 4);
-
-  if (jsResultStr!=NULL) {
-    nuDebConPrintf(0, "%s;\n=>%s\n", jsExpr, jsResultStr);
-    // nuDebConPrintf(0, "%s", jsResultStr);
-  }
   nuDebConDisp(NU_SC_SWAPBUFFER);
-
 }
 
 // A static array of model vertex data.
-// This include the position (x,y,z), texture U,V coords (called S,T in the SDK)
-// and vertex color values in r,g,b,a form.
-// As this data will be read by the RCP via direct memory access, which is
-// required to be 16-byte aligned, it's a good idea to annotate it with the GCC
-// attribute `__attribute__((aligned (16)))`, to force it to be 16-byte aligned.
+// This include the position (x,y,z), texture U,V coords (called S,T in the
+// SDK) and vertex color values in r,g,b,a form. As this data will be read by
+// the RCP via direct memory access, which is required to be 16-byte aligned,
+// it's a good idea to annotate it with the GCC attribute
+// `__attribute__((aligned (16)))`, to force it to be 16-byte aligned.
 Vtx squareVerts[] __attribute__((aligned(16))) = {
     //  x,   y,  z, flag, S, T,    r,    g,    b,    a
     {-64, 64, -5, 0, 0, 0, 0x00, 0xff, 0x00, 0xff},
@@ -362,8 +387,8 @@ void drawSquare() {
   gSP2Triangles(displayListPtr++, 0, 1, 2, 0, 0, 2, 3, 0);
 
   // Mark that we've finished sending commands for this particular primitive.
-  // This is needed to prevent race conditions inside the rendering hardware in
-  // the case that subsequent commands change rendering settings.
+  // This is needed to prevent race conditions inside the rendering hardware
+  // in the case that subsequent commands change rendering settings.
   gDPPipeSync(displayListPtr++);
 }
 
@@ -375,10 +400,10 @@ void drawN64Logo() {
   gSPClearGeometryMode(displayListPtr++, 0xFFFFFFFF);
   gSPSetGeometryMode(displayListPtr++, G_SHADE | G_SHADING_SMOOTH | G_ZBUFFER);
 
-  // The gSPDisplayList command causes the RCP to render a static display list,
-  // then return to this display list afterwards. These 4 display lists are
-  // defined in n64logo.h, and were generated from a 3D model using a conversion
-  // script.
+  // The gSPDisplayList command causes the RCP to render a static display
+  // list, then return to this display list afterwards. These 4 display lists
+  // are defined in n64logo.h, and were generated from a 3D model using a
+  // conversion script.
   gSPDisplayList(displayListPtr++, N64Yellow_PolyList);
   gSPDisplayList(displayListPtr++, N64Red_PolyList);
   gSPDisplayList(displayListPtr++, N64Blue_PolyList);
@@ -389,8 +414,8 @@ void drawN64Logo() {
 
 // the nusystem callback for the stage, called once per frame
 void stage00(int pendingGfx) {
-  // produce a new displaylist (unless we're running behind, meaning we already
-  // have the maximum queued up)
+  // produce a new displaylist (unless we're running behind, meaning we
+  // already have the maximum queued up)
   if (pendingGfx < 1)
     makeDL00();
 

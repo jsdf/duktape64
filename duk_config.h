@@ -1,3 +1,4 @@
+// clang-format off
 #undef _MIPS_SIM
 #include <limits.h>
 
@@ -3156,7 +3157,7 @@ typedef struct duk_hthread duk_context;
 
 
 // #define DUK_USE_DEBUG
-#define DUK_USE_ASSERTIONS
+// #define DUK_USE_ASSERTIONS
 // #define DUK_USE_DEBUG_LEVEL 1
 
 #define DUK_USE_DEBUG_WRITE(level,file,line,func,msg) \

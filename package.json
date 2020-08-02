@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/CrashOveride95/n64-sdk-demo#readme",
   "dependencies": {
-    "ed64logjs": "^1.0.1"
+    "ed64logjs": "^1.0.1",
+    "p-queue": "^6.6.0"
   }
 }

@@ -53,7 +53,7 @@ $(CODESEGMENT): $(CODEOBJECTS)
     $(LD) -o $(CODESEGMENT) -r $(CODEOBJECTS) $(LDFLAGS) $(EXTRA_SYMBOLS)
 
 $(TARGETS): $(OBJECTS)
-    $(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -e $(APP) 
+    $(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -e $(APP) -E
     makemask $(TARGETS)
 
 version:

@@ -42,4 +42,5 @@ sleep 1;
 retry loader64 -v --pifboot
 
 # tail the logger 
-ed64logjs
+# ed64logjs
+node console.js

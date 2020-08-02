@@ -15,14 +15,14 @@ NUContData contdata[1];  // storage for controller 1 inputs
       _##name##SegmentBssStart[], _##name##SegmentBssEnd[]
 
 void Rom2Ram(void*, void*, s32);
- 
+
 EXTERN_SEGMENT_WITH_BSS(duktape);
 // EXTERN_SEGMENT_WITH_BSS(nextmb);
 EXTERN_SEGMENT_WITH_BSS(memheap);
 
-int systemHeapMemoryInit(void) { 
+int systemHeapMemoryInit(void) {
   int initHeapResult;
-  void *  mallocRes;
+  void* mallocRes;
 
   if (osGetMemSize() == 0x00800000) {
     ed64PrintfSync("have expansion pack\n");
@@ -31,8 +31,9 @@ int systemHeapMemoryInit(void) {
   }
 
   Rom2Ram(_memheapSegmentRomStart, _memheapSegmentStart,
-          _memheapSegmentRomEnd - _memheapSegmentRomStart); 
-  bzero(_memheapSegmentBssStart, _memheapSegmentBssEnd - _memheapSegmentBssStart); 
+          _memheapSegmentRomEnd - _memheapSegmentRomStart);
+  bzero(_memheapSegmentBssStart,
+        _memheapSegmentBssEnd - _memheapSegmentBssStart);
 
   ed64PrintfSync("init heap at %p\n", _memheapSegmentStart);
   /* Reserve system heap memory */
@@ -46,7 +47,6 @@ int systemHeapMemoryInit(void) {
     if (mallocRes) {
       ed64PrintfSync("malloc works=%p\n", mallocRes);
     } else {
-
       ed64PrintfSync("malloc failed\n");
     }
     free(mallocRes);
@@ -58,8 +58,7 @@ int systemHeapMemoryInit(void) {
 #include "limits.h"
 int intMax = INT_MAX;
 
-
-void mainproc(void) { 
+void mainproc(void) {
   evd_init();
 
   // start thread which will catch and log errors
@@ -67,26 +66,22 @@ void mainproc(void) {
 
   // handler for libultra errors
   // ed64RegisterOSErrorHandler();
-  
+
   // overwrite osSyncPrintf impl
   ed64ReplaceOSSyncPrintf();
 
-  ed64PrintfSync2("hello\n");
-
   systemHeapMemoryInit();
-
-
 
   // load in the duktape segment into higher memory
   // Rom2Ram(_nextmbSegmentRomStart, _nextmbSegmentStart,
-  //         _nextmbSegmentRomEnd - _nextmbSegmentRomStart); 
+  //         _nextmbSegmentRomEnd - _nextmbSegmentRomStart);
   Rom2Ram(_duktapeSegmentRomStart, _duktapeSegmentStart,
-          _duktapeSegmentRomEnd - _duktapeSegmentRomStart); 
-  bzero(_duktapeSegmentBssStart, _duktapeSegmentBssEnd - _duktapeSegmentBssStart); 
+          _duktapeSegmentRomEnd - _duktapeSegmentRomStart);
+  bzero(_duktapeSegmentBssStart,
+        _duktapeSegmentBssEnd - _duktapeSegmentBssStart);
 
   // initialize the graphics system
   nuGfxInit();
-
 
   // initialize the controller manager
   nuContInit();
