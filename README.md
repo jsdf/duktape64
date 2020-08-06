@@ -15,3 +15,7 @@
   - `./build_exegcc.sh`
   - connect everdrive64 v3
   - `./deploy.sh`
+
+this will bring up a javascript REPL, into which you can type javascript expressions and receive the evaluated results
+sometimes the > prompt gets lost, just press enter
+to load and execute a javascript file from your local machine, use the command `.load [your js filename]`

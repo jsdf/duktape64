@@ -9,7 +9,7 @@ executable_file="squaresdemo.out"
 # pc_address="${1:-''}"
 
 
-mips64-elf-objdump  -S --prefix-addresses "$executable_file" > disassembly.txt
+mips64-elf-objdump  -S --syms  -m mips:4300  --prefix-addresses "$executable_file" > disassembly.txt
 
 # if [ -n "$pc_address" ]; then 
 #   grep --color=always -C 8 "${pc_address/0x/}" disassembly.txt

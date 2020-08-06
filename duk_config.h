@@ -5,13 +5,8 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#pragma message "INT_MAX: " XSTR(INT_MAX)
+//#pragma message "INT_MAX: " XSTR(INT_MAX)
 // #error "die"
-
-// // 
-// #define DUK_USE_DEBUG 2
-// #define DUK_USE_DEBUG_LEVEL 2
-// #define DUK_USE_ASSERTIONS
 
 // #define DUK_ASSERT(expression)                                          \
 //   if (!(expression)) {                                                 \
@@ -87,7 +82,9 @@
 #if !defined(DUK_CONFIG_H_INCLUDED)
 #define DUK_CONFIG_H_INCLUDED
 
+#ifdef EXEGCC
 #include "gcc-predefines.h"
+#endif
 
 /*
  *  Intermediate helper defines
@@ -3157,7 +3154,7 @@ typedef struct duk_hthread duk_context;
 
 
 // #define DUK_USE_DEBUG
-// #define DUK_USE_ASSERTIONS
+#define DUK_USE_ASSERTIONS
 // #define DUK_USE_DEBUG_LEVEL 1
 
 #define DUK_USE_DEBUG_WRITE(level,file,line,func,msg) \

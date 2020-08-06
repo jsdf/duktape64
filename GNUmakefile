@@ -30,11 +30,13 @@ TARGETS =	squaresdemo.n64
 
 HFILES =	graphic.h
 
-CODEFILES = main.c graphic.c gfxinit.c stage00.c  $(wildcard ed64io_*.c)  libc_shims.c
+CODEFILES = main.c graphic.c gfxinit.c stage00.c  ed64io_everdrive.c  ed64io_fault.c ed64io_sys.c   ed64io_usb.c libc_shims.c
 
 CODEOBJECTS =	$(CODEFILES:.c=.o)  $(NUSYSLIBDIR)/nusys.o
 
-DATAFILES   =  	  mem_heap.c  duktape.c
+DATAFILES   =     mem_heap.c   duktape.c duk_console.c
+
+EXTRA_SYMBOLS =  -u acos -u asin -u atan -u atan2 -u ceil -u cos -u exp -u floor -u fmod -u log -u longjmp -u memcmp -u memmove -u pow -u realloc -u setjmp -u sin -u sprintf -u sqrt -u strcmp -u strncmp -u tan
 
 DATAOBJECTS =	$(DATAFILES:.c=.o)
 
@@ -47,11 +49,11 @@ default:        $(TARGETS)
 
 include $(COMMONRULES)
 
-$(CODESEGMENT):	$(CODEOBJECTS) Makefile
-		$(LD) -o $(CODESEGMENT) -r $(CODEOBJECTS) $(LDFLAGS)
+$(CODESEGMENT):	$(CODEOBJECTS)
+		$(LD) -o $(CODESEGMENT) -r $(CODEOBJECTS) $(LDFLAGS) $(EXTRA_SYMBOLS)
 
 $(TARGETS):	$(OBJECTS)
-		$(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -s 9 -e $(APP)  -d  -m 
+		$(MAKEROM) spec -I$(NUSYSINCDIR) -r $(TARGETS) -s 9 -e $(APP)  #-d  -m 
 		makemask $(TARGETS)
 
 gcc-predefines:

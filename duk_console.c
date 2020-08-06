@@ -12,6 +12,8 @@
 #include "duktape.h"
 #include "ed64io.h"
 
+const char* duk__console_last_result = NULL;
+
 /* XXX: Add some form of log level filtering. */
 
 /* XXX: Should all output be written via e.g. console.write(formattedMsg)?
@@ -56,8 +58,8 @@ static duk_ret_t duk__console_log_helper(duk_context* ctx,
                      DUK_DEFPROP_HAVE_VALUE); /* to get e.g. 'Trace: 1 2 3' */
     duk_get_prop_string(ctx, -1, "stack");
   }
-
-  ed64Printf("%s\n", duk_to_string(ctx, -1));
+  duk__console_last_result = duk_to_string(ctx, -1);
+  ed64Printf("%s\n", duk__console_last_result);
   return 0;
 }
 

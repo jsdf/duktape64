@@ -8,6 +8,7 @@
 #include "stage00.h"
 
 #include "ed64io.h"
+#include "ed64io_sys.h"
 
 #include "duktape.h"
 
@@ -43,7 +44,9 @@ int squaresRotationDirection;
 
 int showN64Logo;
 
-duk_context* ctx;
+static duk_context* ctx;
+
+static int multipartMessageOngoing = FALSE;
 
 static void my_fatal(void* udata, const char* msg) {
   DUK_USE_FATAL_HANDLER(udata, msg);
@@ -52,6 +55,11 @@ static void my_fatal(void* udata, const char* msg) {
 static void n64log(const char* msg) {
   nuDebConPrintf(0, "%s", msg);
 }
+
+#define PRINTF_FLUSH()                   \
+  while (ed64AsyncLoggerFlush() != -1) { \
+    evd_sleep(1);                        \
+  }
 
 // the 'setup' function
 void initStage00() {
@@ -80,15 +88,54 @@ void initStage00() {
   nuDebConWindowPos(0, 4, 4);
 }
 
+void js_eval(char* jsText) {
+  int success;
+  DBGPRINT("evaling: %s\n", jsText);
+  duk_push_string(ctx, jsText);
+  success = (duk_peval(ctx) == 0);
+  PRINTF_FLUSH();
+  ed64Printf("$EVAL$START\n");
+  if (success) {
+    duk__fmt(ctx);
+    // nuDebConClear(0);
+
+    nuDebConPrintf(0, "> %s\n", jsText);
+    nuDebConPrintf(0, "=> %s\n", duk__console_last_result);
+  } else {
+    ed64Printf("%s\n", duk_safe_to_string(ctx, -1));
+  }
+  PRINTF_FLUSH();
+  ed64Printf("$EVAL$END\n");
+  PRINTF_FLUSH();
+  duk_pop(ctx);
+}
+
+void js_exec(char* jsText) {
+  int success;
+  DBGPRINT("execing: %s\n", jsText);
+  duk_push_string(ctx, jsText);
+  success = (duk_peval(ctx) == 0);
+  if (!success) {
+    // exec failure
+    printf("%s\n", duk_safe_to_string(ctx, -1));
+  }
+  duk_pop(ctx);
+}
+
 #define USB_BUFFER_SIZE 128
 
 int evalBufferSize = 0;  // in bytes
 char* evalBuffer = NULL;
 
-#define EVAL_BODY_MAX 506
+#define EVAL_BODY_MAX 504
+
+#define FLAG_HAS_MORE_CHUNKS 1
 
 int ed64UsbCmdListener() {
   char cmd;
+  u16 bodySize;
+  u16 flags;
+  const char* body;
   u32 usb_rx_buff32[USB_BUFFER_SIZE];
   char* usb_rx_buff8 = (char*)usb_rx_buff32;
   memset(usb_rx_buff8, 0, USB_BUFFER_SIZE * 4);
@@ -116,14 +163,48 @@ int ed64UsbCmdListener() {
   cmd = usb_rx_buff8[3];
   DBGPRINT("got command: '%c'\n", cmd);
 
+  // parse packet
+  bodySize = *((u16*)(usb_rx_buff8 + 4));  // start + 4 bytes
+  flags = *((u16*)(usb_rx_buff8 + 6));     // start + 6 bytes
+  body = usb_rx_buff8 + 8;                 // start + 8 bytes
+  DBGPRINT("bodySize=%d flags=%d\n", bodySize, flags);
+
   switch (cmd) {
-    case 'e':
-    case 'x': {
+    case 's':  // signal
+    {
+      int success;
+      ed64PrintfSync2("about to eval\n");
+      // duk_push_string(ctx, "console.log(JSON.stringify({a:{b:1}}))");
+      duk_push_string(
+          ctx,
+          "const fanout = 2;"
+          "function doStuff(maxDepth, depth) {"
+          "  const a = {};"
+          "  for (var i = 0; i < fanout; i++) {"
+          "    a[i] = depth == maxDepth ? {} : doStuff(maxDepth, depth + 1);"
+          "  }"
+          "  return a;"
+          "}\n"
+          "console.log(doStuff(2, 0));");
+      success = (duk_peval(ctx) == 0);
+      PRINTF_FLUSH()
+      if (success) {
+        ed64PrintfSync2("success\n");
+        // duk__fmt(ctx);
+      } else {
+        ed64PrintfSync2("failure\n");
+        ed64Printf("%s\n", duk_safe_to_string(ctx, -1));
+      }
+      PRINTF_FLUSH()
+      duk_pop(ctx);
+
+      return TRUE;
+    }
+    case 'e':  // eval
+    case 'x':  // exec
+    {
       char* evalBufferNext;
-      u16 bodySize = *((u16*)(usb_rx_buff8 + 4));  // start + 4 bytes
-      const char* body = usb_rx_buff8 + 6;         // start + 6 bytes
-      int isLastChunk = FALSE;
-      char debugBody[EVAL_BODY_MAX + 1];
+      int isLastChunk = !(flags & FLAG_HAS_MORE_CHUNKS);
 
       if (bodySize > EVAL_BODY_MAX || bodySize < 1) {
         PRINTF("message bodySize field invalid %d\n", bodySize);
@@ -131,30 +212,14 @@ int ed64UsbCmdListener() {
       }
       bodySize = MIN(bodySize, EVAL_BODY_MAX);
 
-      // print out the body for debugging
-      memcpy(debugBody, body, bodySize);
-      debugBody[bodySize] = '\0';
-      DBGPRINT("got body: %s\n", debugBody);
-
-      DBGPRINT("will alloc: %d\n", evalBufferSize + bodySize);
       // buffer for next js string (appended to current)
+      DBGPRINT("will alloc: %d\n", evalBufferSize + bodySize);
       evalBufferNext = (char*)malloc(evalBufferSize + bodySize);
       if (!evalBufferNext) {
         PRINTF("failed to alloc memory\n");
         return TRUE;
       }
 
-      // the presence of a '\0' indicates we're done receiving chunks and can
-      // proceed with evaluation
-      {
-        int i;
-        for (i = 0; i < bodySize; ++i) {
-          if (body[i] == '\0') {
-            isLastChunk = TRUE;
-            break;
-          }
-        }
-      }
       if (evalBuffer) {
         // copy any existing stuff into the new buffer
         memcpy(evalBufferNext, evalBuffer, evalBufferSize);
@@ -162,31 +227,42 @@ int ed64UsbCmdListener() {
       memcpy(evalBufferNext + evalBufferSize, body, bodySize);
       free(evalBuffer);
       evalBuffer = evalBufferNext;
+      evalBufferSize = evalBufferSize + bodySize;
 
-      // we're ready to eval the text
-      // and it definitely has a null-terminator
       if (isLastChunk) {
-        DBGPRINT("evaling: %s\n", evalBuffer);
-        // duk_eval_string(ctx, evalBuffer);
-        duk_push_string(ctx, evalBuffer);
-        if (duk_peval(ctx) != 0) {
-          printf("%s\n", duk_safe_to_string(ctx, -1));
-        } else {
-          // in eval case we return output, in exec case we don't
-          if (cmd == 'e') {
-            ed64Printf("=> ");
-            duk__fmt(ctx);
+        // we're ready to eval the text
+        // make sure we have a '\0' in there somewhere
+        int hasNullTerminator = FALSE;
+        {
+          int i;
+          for (i = 0; i < evalBufferSize; ++i) {
+            if (evalBuffer[i] == '\0') {
+              hasNullTerminator = TRUE;
+              break;
+            }
           }
         }
-        duk_pop(ctx);
+        if (!hasNullTerminator) {
+          PRINTF("has no null terminator\n");
+          return TRUE;
+        }
+
+        // in eval case we return output, in exec case we don't
+        if (cmd == 'e') {
+          js_eval(evalBuffer);
+        } else {
+          js_exec(evalBuffer);
+        }
+
+        // dispose of buffer
         free(evalBuffer);
         evalBuffer = NULL;
+        evalBufferSize = 0;
+        multipartMessageOngoing = FALSE;
       } else {
         // multi-part message, wait for more chunks
         DBGPRINT("multi-part message\n");
-        while (!ed64UsbCmdListener()) {
-          evd_sleep(100);
-        }
+        multipartMessageOngoing = TRUE;
       }
 
       return TRUE;
@@ -233,6 +309,12 @@ void updateGame00() {
 
   // poll for command from client
   ed64UsbCmdListener();
+  while (multipartMessageOngoing) {
+    while (!ed64UsbCmdListener() && multipartMessageOngoing) {
+      evd_sleep(100);
+    }
+    evd_sleep(100);
+  }
   // send buffered output
   ed64AsyncLoggerFlush();
 }

@@ -24,6 +24,8 @@ extern void duk_console_init(duk_context* ctx, duk_uint_t flags);
 
 duk_ret_t duk__fmt(duk_context* ctx);
 
+const char* duk__console_last_result;
+
 #if defined(__cplusplus)
 }
 #endif /* end 'extern "C"' wrapper */
