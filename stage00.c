@@ -88,17 +88,30 @@ void initStage00() {
   nuDebConWindowPos(0, 4, 4);
 }
 
+char* js_wrap_pre = "(function() { return ";
+char* js_wrap_post = " })()";
 void js_eval(char* jsText) {
   int success;
-  DBGPRINT("evaling: %s\n", jsText);
-  duk_push_string(ctx, jsText);
+  char* wrapped;
+
+  wrapped = (char*)malloc(strlen(js_wrap_pre) + strlen(jsText) +
+                          strlen(js_wrap_post));
+  if (!wrapped) {
+    PRINTF("js_eval failed to alloc memory\n");
+    return;
+  }
+  *wrapped = '\0';
+  strcat(wrapped, js_wrap_pre);
+  strcat(wrapped, jsText);
+  strcat(wrapped, js_wrap_post);
+
+  DBGPRINT("evaling: %s\n", wrapped);
+  duk_push_string(ctx, wrapped);
   success = (duk_peval(ctx) == 0);
   PRINTF_FLUSH();
   ed64Printf("$EVAL$START\n");
   if (success) {
     duk__fmt(ctx);
-    // nuDebConClear(0);
-
     nuDebConPrintf(0, "> %s\n", jsText);
     nuDebConPrintf(0, "=> %s\n", duk__console_last_result);
   } else {
@@ -108,6 +121,7 @@ void js_eval(char* jsText) {
   ed64Printf("$EVAL$END\n");
   PRINTF_FLUSH();
   duk_pop(ctx);
+  free(wrapped);
 }
 
 void js_exec(char* jsText) {
@@ -216,7 +230,7 @@ int ed64UsbCmdListener() {
       DBGPRINT("will alloc: %d\n", evalBufferSize + bodySize);
       evalBufferNext = (char*)malloc(evalBufferSize + bodySize);
       if (!evalBufferNext) {
-        PRINTF("failed to alloc memory\n");
+        PRINTF("ed64UsbCmdListener failed to alloc memory\n");
         return TRUE;
       }
 

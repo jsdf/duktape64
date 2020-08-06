@@ -1,7 +1,9 @@
 
 #include <libc_shims.h>
-#include <time.h>
 #include <malloc.h>
+#include <time.h>
+
+#include <PR/os.h>
 
 void abort() {
   printf("abort()");
@@ -328,9 +330,7 @@ int snprintf(char* s, size_t n, const char* format, ...) {
   return result;
 }
 
-
 void ed64PrintfSync2(const char* fmt, ...);
-
 
 int sscanf(const char* str, const char* format, ...) {
   int n;
@@ -338,10 +338,10 @@ int sscanf(const char* str, const char* format, ...) {
   va_start(arg_ptr, format);
 
   ed64PrintfSync2("%s not implemented", __FUNCTION__);
-  {                                                                  
-    int intentionallyCrash;                                  
-    intentionallyCrash = *(int*)1;                                   
-  }  
+  {
+    int intentionallyCrash;
+    intentionallyCrash = *(int*)1;
+  }
   // TODO
   // n=vsscanf(str,format,arg_ptr);
   n = 0;
@@ -349,10 +349,11 @@ int sscanf(const char* str, const char* format, ...) {
   return n;
 }
 
-static time_t curtime = 0;
+// static time_t curtime = 0;
 
-time_t time(time_t *arg) {
-  time_t ret = curtime++;
+time_t time(time_t* arg) {
+  // time_t ret = curtime++;
+  time_t ret = OS_CYCLES_TO_USEC(osGetTime()) / 1000000.0;
   if (arg) {
     *arg = ret;
   }
@@ -360,46 +361,48 @@ time_t time(time_t *arg) {
 }
 
 double difftime(time_t time1, time_t time2) {
-    return (double)time1 - (double)time2;
+  return (double)time1 - (double)time2;
 }
-time_t mktime (struct tm * tm) {
+time_t mktime(struct tm* tm) {
   return tm->tm_sec;
 }
-// size_t strftime (char *__restrict, size_t, const char *__restrict, const struct tm *__restrict);
-
+// size_t strftime (char *__restrict, size_t, const char *__restrict, const
+// struct tm *__restrict);
 
 /* seconds per day */
-#define SPD 24*60*60
+#define SPD 24 * 60 * 60
 
 struct tm gmtime_static;
-struct tm *gmtime(const time_t *timep) {
-  struct tm *r = &gmtime_static;
-  time_t work=*timep%(SPD);
-  r->tm_sec=work%60; work/=60;
-  r->tm_min=work%60;
-  r->tm_hour=work/60;
-  r->tm_wday=1;
-  r->tm_year=1970;
-  r->tm_yday=1;
-  r->tm_mday=1;
-  r->tm_mon=1;
-  r->tm_mday=1;
+struct tm* gmtime(const time_t* timep) {
+  struct tm* r = &gmtime_static;
+  time_t work = *timep % (SPD);
+  r->tm_sec = work % 60;
+  work /= 60;
+  r->tm_min = work % 60;
+  r->tm_hour = work / 60;
+  r->tm_wday = 1;
+  r->tm_year = 1970;
+  r->tm_yday = 1;
+  r->tm_mday = 1;
+  r->tm_mon = 1;
+  r->tm_mday = 1;
   return r;
 }
 
 struct tm localtime_static;
-struct tm *localtime (const time_t * timep) {
-  struct tm *r = &localtime_static;
-  time_t work=*timep%(SPD);
-  r->tm_sec=work%60; work/=60;
-  r->tm_min=work%60;
-  r->tm_hour=work/60;
-  r->tm_wday=1;
-  r->tm_year=1970;
-  r->tm_yday=1;
-  r->tm_mday=1;
-  r->tm_mon=1;
-  r->tm_mday=1;
+struct tm* localtime(const time_t* timep) {
+  struct tm* r = &localtime_static;
+  time_t work = *timep % (SPD);
+  r->tm_sec = work % 60;
+  work /= 60;
+  r->tm_min = work % 60;
+  r->tm_hour = work / 60;
+  r->tm_wday = 1;
+  r->tm_year = 1970;
+  r->tm_yday = 1;
+  r->tm_mday = 1;
+  r->tm_mon = 1;
+  r->tm_mday = 1;
   return r;
 }
 // char *asctime (const struct tm *);

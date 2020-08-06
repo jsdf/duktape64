@@ -35,8 +35,8 @@ function delay(time) {
 }
 
 function clearLine() {
-  // readline.clearLine(process.stdout, 0);
-  // readline.cursorTo(process.stdout, 0);
+  readline.clearLine(process.stdout, 0);
+  readline.cursorTo(process.stdout, 0);
 }
 
 /*
@@ -103,6 +103,11 @@ function runCommand(cmd, evalText, callback) {
   });
 }
 
+function wrapFn(js) {
+  // return `(function() { return ${js} })()`
+  return js;
+}
+
 let evalResult = null;
 let evalCallback = null;
 function replEval(cmd, context, filename, callback) {
@@ -121,7 +126,7 @@ function replEval(cmd, context, filename, callback) {
     evalCallback = resolve;
   });
   const cmdResult = new Promise((resolve, reject) => {
-    runCommand('e', `(function() { return ${cmd} })()`, (err) =>
+    runCommand('e', wrapFn(cmd.trim()), (err) =>
       err ? reject(err) : resolve()
     );
   }).catch(callback);
